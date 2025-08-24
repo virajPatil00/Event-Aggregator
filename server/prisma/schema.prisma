@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          Role     @default(STUDENT)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  bookmarks     Bookmark[]
+  rsvps         RSVP[]
+  notificationTokens NotificationToken[]
+  checkIns      CheckIn[]
+}
+
+enum Role {
+  STUDENT
+  ORGANIZER
+  ADMIN
+}
+
+model Event {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  location      String
+  imageUrl      String?
+  startTime     DateTime
+  endTime       DateTime
+  category      String
+  department    String?
+  organizer     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  source        String?  // e.g., ICS, RSS, Manual
+  sourceId      String?  // id from source for dedupe
+  isPublished   Boolean  @default(true)
+  Bookmarks     Bookmark[]
+  RSVPs         RSVP[]
+  CheckIns      CheckIn[]
+
+  @@unique([source, sourceId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+  @@unique([userId, eventId])
+}
+
+model RSVP {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  status    RSVPStatus @default(GOING)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+  @@unique([userId, eventId])
+}
+
+enum RSVPStatus {
+  GOING
+  INTERESTED
+  NOT_GOING
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  timestamp DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model NotificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
