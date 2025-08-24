@@ -1,26 +1,24 @@
-import ical from 'ical';
+import * as icalLib from 'ical';
 import Parser from 'rss-parser';
 import prisma from './prisma';
 
 export type AggregatorSource =
-	| { type: 'ics'; url: string; category?: string; department?: string; organizer?: string }
-	| { type: 'rss'; url: string; category?: string; department?: string; organizer?: string };
-
-const sources: AggregatorSource[] = [
-	// Example placeholders; replace with real campus feeds
-	// { type: 'ics', url: 'https://example.edu/calendar.ics', category: 'General' },
-	// { type: 'rss', url: 'https://example.edu/events.rss', category: 'General' },
-];
+	| { type: 'ics'; url: string; category?: string; department?: string; organizer?: string; institution?: string }
+	| { type: 'rss'; url: string; category?: string; department?: string; organizer?: string; institution?: string };
 
 export async function runAggregator(customSources?: AggregatorSource[]): Promise<{ upserted: number }>{
-	const usedSources = customSources ?? sources;
+	let usedSources = customSources;
+	if (!usedSources) {
+		const dbSources = await prisma.source.findMany({ where: { isEnabled: true } });
+		usedSources = dbSources.map(s => ({ type: s.type as 'ics' | 'rss', url: s.url || '', category: s.category || undefined, department: s.department || undefined, organizer: s.organizer || undefined, institution: s.institution || undefined }));
+	}
 	let upserted = 0;
 
 	for (const src of usedSources) {
-		if (src.type === 'ics') {
+		if (src.type === 'ics' && src.url) {
 			try {
-				const data = await new Promise<Record<string, ical.VEvent>>((resolve, reject) => {
-					ical.fromURL(src.url, {}, (err, data) => {
+				const data: Record<string, any> = await new Promise((resolve, reject) => {
+					(icalLib as any).fromURL(src.url, {}, (err: any, data: any) => {
 						if (err) reject(err);
 						else resolve(data);
 					});
@@ -28,7 +26,7 @@ export async function runAggregator(customSources?: AggregatorSource[]): Promise
 				for (const key of Object.keys(data)) {
 					const ev = data[key] as any;
 					if (!ev || ev.type !== 'VEVENT') continue;
-					const sourceId = ev.uid || ev.summary + String(ev.start);
+					const sourceId = ev.uid || String(ev.summary) + String(ev.start);
 					await prisma.event.upsert({
 						where: { source_sourceId: { source: src.url, sourceId } },
 						create: {
@@ -40,6 +38,7 @@ export async function runAggregator(customSources?: AggregatorSource[]): Promise
 							category: src.category || 'General',
 							department: src.department,
 							organizer: src.organizer,
+							institution: src.institution,
 							source: src.url,
 							sourceId,
 							isPublished: true
@@ -57,31 +56,32 @@ export async function runAggregator(customSources?: AggregatorSource[]): Promise
 			} catch (e) {
 				console.error('ICS fetch error', src.url, e);
 			}
-		} else if (src.type === 'rss') {
+		} else if (src.type === 'rss' && src.url) {
 			try {
 				const parser = new Parser();
 				const feed = await parser.parseURL(src.url);
 				for (const item of feed.items) {
-					const sourceId = item.guid || item.link || item.title || String(item.pubDate);
-					const start = item.isoDate ? new Date(item.isoDate) : new Date();
+					const sourceId = (item as any).guid || (item as any).link || item.title || String(item.pubDate);
+					const start = (item as any).isoDate ? new Date((item as any).isoDate as string) : new Date();
 					await prisma.event.upsert({
 						where: { source_sourceId: { source: src.url, sourceId: String(sourceId) } },
 						create: {
 							title: item.title || 'Untitled',
-							description: item.contentSnippet || item.content || '',
+							description: item.contentSnippet || (item as any).content || '',
 							location: 'TBA',
 							startTime: start,
 							endTime: new Date(start.getTime() + 60 * 60 * 1000),
 							category: src.category || 'General',
 							department: src.department,
 							organizer: src.organizer,
+							institution: src.institution,
 							source: src.url,
 							sourceId: String(sourceId),
 							isPublished: true
 						},
 						update: {
 							title: item.title || 'Untitled',
-							description: item.contentSnippet || item.content || ''
+							description: item.contentSnippet || (item as any).content || ''
 						}
 					});
 					upserted++;

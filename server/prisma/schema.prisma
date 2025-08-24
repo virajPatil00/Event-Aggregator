@@ -25,6 +25,7 @@ model User {
   checkIns      CheckIn[]
   preference    Preference?
   feedbacks     Feedback[]
+  createdEvents Event[]   @relation("UserCreatedEvents")
 }
 
 enum Role {
@@ -54,9 +55,12 @@ model Event {
   RSVPs         RSVP[]
   CheckIns      CheckIn[]
   Feedbacks     Feedback[]
+  createdById   String?
+  createdBy     User?    @relation("UserCreatedEvents", fields: [createdById], references: [id])
 
   @@unique([source, sourceId])
   @@index([startTime])
+  @@index([createdById])
 }
 
 model Bookmark {

@@ -10,6 +10,10 @@ import rsvpRouter from './routes/rsvp';
 import checkinRouter from './routes/checkin';
 import notificationsRouter from './routes/notifications';
 import aggregatorRouter from './routes/aggregator';
+import preferencesRouter from './routes/preferences';
+import feedbackRouter from './routes/feedback';
+import analyticsRouter from './routes/analytics';
+import sourcesRouter from './routes/sources';
 import { startCron } from './cron';
 
 const app = express();
@@ -30,6 +34,10 @@ app.use('/api/rsvps', rsvpRouter);
 app.use('/api/checkin', checkinRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/aggregator', aggregatorRouter);
+app.use('/api/preferences', preferencesRouter);
+app.use('/api/feedback', feedbackRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/sources', sourcesRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
 app.listen(port, () => {
